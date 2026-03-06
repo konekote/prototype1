@@ -1,0 +1,776 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Supertab – Article Access Prototype</title>
+<link href="https://fonts.googleapis.com/css2?family=Söhne:wght@400;500;600&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'Inter', sans-serif;
+    background: #1a0a0a;
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+  }
+
+  /* ── Background article blur ── */
+  .bg-article {
+    position: fixed; inset: 0;
+    background: #7a1010 url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.03'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
+    filter: blur(0px);
+    z-index: 0;
+  }
+  .bg-article::after {
+    content: '';
+    position: absolute; inset: 0;
+    background: rgba(0,0,0,0.55);
+  }
+  .bg-text {
+    position: fixed; inset: 0; z-index: 1;
+    padding: 40px;
+    color: rgba(255,255,255,0.18);
+    font-size: 15px;
+    line-height: 1.8;
+    pointer-events: none;
+    overflow: hidden;
+  }
+
+  /* ── Overlay backdrop ── */
+  .overlay {
+    position: fixed; inset: 0; z-index: 10;
+    background: rgba(0,0,0,0.45);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+  }
+
+  /* ── Modal / Popup ── */
+  .modal {
+    background: #fff;
+    border-radius: 16px;
+    width: 100%;
+    max-width: 420px;
+    position: relative;
+    box-shadow: 0 24px 80px rgba(0,0,0,0.4);
+    animation: popIn 0.22s cubic-bezier(0.34,1.56,0.64,1);
+    overflow: hidden;
+  }
+
+  @keyframes popIn {
+    from { opacity: 0; transform: scale(0.92) translateY(8px); }
+    to   { opacity: 1; transform: scale(1) translateY(0); }
+  }
+
+  /* ── Test mode banner ── */
+  .test-banner {
+    background: #fff5f5;
+    border-bottom: 1px solid #fde8e8;
+    text-align: center;
+    padding: 8px;
+    font-size: 13px;
+    font-weight: 600;
+    color: #c0392b;
+    letter-spacing: 0.02em;
+  }
+
+  /* ── Demo banner (checkout) ── */
+  .demo-banner {
+    background: #fffbeb;
+    border-bottom: 1px solid #fef3c7;
+    padding: 12px 16px;
+    font-size: 13px;
+    color: #92400e;
+    display: flex;
+    gap: 8px;
+    align-items: flex-start;
+  }
+  .demo-banner .warn-icon { font-size: 15px; margin-top: 1px; flex-shrink: 0; }
+
+  .modal-body { padding: 24px; }
+
+  /* ── Close / Back buttons ── */
+  .btn-close {
+    position: absolute; top: 14px; right: 16px;
+    background: none; border: none; cursor: pointer;
+    font-size: 20px; color: #555; line-height: 1;
+    padding: 4px;
+    transition: color 0.15s;
+  }
+  .btn-close:hover { color: #111; }
+
+  .btn-back {
+    background: none; border: none; cursor: pointer;
+    font-size: 14px; font-weight: 600; color: #111;
+    display: flex; align-items: center; gap: 6px;
+    padding: 0; margin-bottom: 20px;
+    transition: opacity 0.15s;
+  }
+  .btn-back:hover { opacity: 0.65; }
+  .btn-back::before { content: '‹'; font-size: 20px; line-height: 1; margin-top: -1px; }
+
+  /* ── Screen 1: Payment options ── */
+  .article-label {
+    font-size: 13px; font-weight: 600; color: #555;
+    text-transform: uppercase; letter-spacing: 0.06em;
+    margin-bottom: 6px;
+  }
+  .screen1-title { font-size: 26px; font-weight: 700; color: #111; margin-bottom: 8px; }
+  .tab-notice {
+    font-size: 13px; color: #666; margin-bottom: 22px;
+    display: flex; align-items: center; gap: 5px;
+  }
+  .tab-notice .info-icon {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 16px; height: 16px; border: 1.5px solid #999;
+    border-radius: 50%; font-size: 10px; color: #999; flex-shrink: 0;
+  }
+
+  .options-row { display: flex; gap: 10px; margin-bottom: 18px; }
+  .option-card {
+    flex: 1; border: 2px solid #e0e0e0; border-radius: 10px;
+    padding: 14px 10px; text-align: center; cursor: pointer;
+    transition: all 0.15s;
+    background: #fff;
+  }
+  .option-card:hover { border-color: #bbb; }
+  .option-card.selected {
+    border-color: #111; background: #f5f5f5;
+  }
+  .option-label { font-size: 15px; font-weight: 700; color: #111; }
+  .option-price { font-size: 13px; color: #555; margin-top: 3px; }
+
+  .btn-primary {
+    width: 100%; padding: 15px;
+    background: #111; color: #fff;
+    border: none; border-radius: 10px;
+    font-size: 16px; font-weight: 600; cursor: pointer;
+    display: flex; align-items: center; justify-content: center; gap: 10px;
+    transition: background 0.15s, transform 0.1s;
+  }
+  .btn-primary:hover { background: #333; }
+  .btn-primary:active { transform: scale(0.98); }
+  .btn-primary.purple { background: #6b48ff; }
+  .btn-primary.purple:hover { background: #5a3de8; }
+
+  .supertab-logo-inline {
+    width: 18px; height: 18px;
+    border: 2.5px solid #fff;
+    border-radius: 50%;
+    display: inline-block;
+    flex-shrink: 0;
+  }
+
+  .divider {
+    display: flex; align-items: center; gap: 12px;
+    margin: 16px 0; color: #bbb; font-size: 13px;
+  }
+  .divider::before, .divider::after {
+    content: ''; flex: 1; height: 1px; background: #e0e0e0;
+  }
+
+  .btn-secondary {
+    width: 100%; padding: 14px;
+    background: #fff; color: #111;
+    border: 1.5px solid #d0d0d0; border-radius: 10px;
+    font-size: 15px; font-weight: 500; cursor: pointer;
+    transition: border-color 0.15s, background 0.15s;
+  }
+  .btn-secondary:hover { border-color: #999; background: #fafafa; }
+
+  .modal-footer {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 14px 24px;
+    border-top: 1px solid #f0f0f0;
+    background: #fafafa;
+  }
+  .footer-brand { display: flex; align-items: center; gap: 6px; font-size: 13px; color: #555; }
+  .footer-brand .supertab-logo-sm {
+    width: 14px; height: 14px; border: 2px solid #555; border-radius: 50%;
+  }
+  .footer-visa { font-size: 11px; font-weight: 700; color: #1a1f71; background: #fff; border: 1px solid #ddd; border-radius: 4px; padding: 2px 6px; }
+  .footer-preferred { font-size: 11px; color: #666; }
+  .btn-login { background: none; border: none; font-size: 13px; color: #555; cursor: pointer; font-weight: 500; }
+  .btn-login:hover { color: #111; }
+
+  /* ── Screen 2: Auth ── */
+  .auth-modal {
+    background: #f2f2f2;
+    border-radius: 16px;
+    width: 100%;
+    max-width: 380px;
+    padding: 32px 28px;
+    box-shadow: 0 24px 80px rgba(0,0,0,0.4);
+    animation: popIn 0.22s cubic-bezier(0.34,1.56,0.64,1);
+  }
+  .auth-title { font-size: 22px; font-weight: 700; color: #111; line-height: 1.35; margin-bottom: 24px; }
+  .auth-title span { color: #6b48ff; }
+
+  .auth-btn {
+    width: 100%; padding: 13px 16px;
+    background: #fff; border: 1.5px solid #d5d5d5;
+    border-radius: 10px; font-size: 15px; font-weight: 500; color: #111;
+    cursor: pointer;
+    display: flex; align-items: center; gap: 12px;
+    margin-bottom: 10px;
+    transition: border-color 0.15s, box-shadow 0.15s;
+  }
+  .auth-btn:hover { border-color: #aaa; box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
+  .auth-btn.disabled { opacity: 0.45; cursor: not-allowed; pointer-events: none; }
+  .auth-btn .btn-icon { width: 20px; height: 20px; flex-shrink: 0; }
+
+  .research-check {
+    display: flex; gap: 10px; align-items: flex-start;
+    background: #fff; border: 1.5px solid #d5d5d5; border-radius: 10px;
+    padding: 12px 14px; margin: 16px 0; font-size: 13px; color: #333;
+  }
+  .research-check input { margin-top: 2px; flex-shrink: 0; }
+
+  .terms-text { font-size: 12px; color: #888; line-height: 1.5; margin-bottom: 20px; }
+  .terms-text a { color: #111; }
+
+  .supertab-section { padding-top: 20px; border-top: 1px solid #d8d8d8; }
+  .supertab-brand { display: flex; align-items: center; gap: 8px; font-size: 15px; font-weight: 700; color: #111; margin-bottom: 14px; }
+  .supertab-circle { width: 20px; height: 20px; border: 2.5px solid #111; border-radius: 50%; }
+  .feature-item { display: flex; gap: 12px; align-items: flex-start; margin-bottom: 12px; }
+  .feature-icon { width: 36px; height: 36px; border-radius: 8px; background: #e8e4ff; display: flex; align-items: center; justify-content: center; font-size: 16px; flex-shrink: 0; }
+  .feature-text h4 { font-size: 13px; font-weight: 600; color: #6b48ff; }
+  .feature-text p { font-size: 12px; color: #666; margin-top: 2px; line-height: 1.4; }
+
+  /* ── Screen 3: Email input ── */
+  .input-field {
+    width: 100%; padding: 13px 14px;
+    border: 1.5px solid #d5d5d5; border-radius: 8px;
+    font-size: 15px; color: #111; background: #fff;
+    outline: none; transition: border-color 0.15s;
+    margin-bottom: 12px;
+    font-family: inherit;
+  }
+  .input-field:focus { border-color: #6b48ff; }
+
+  /* ── Screen 4/5: Password ── */
+  .password-wrap { position: relative; margin-bottom: 10px; }
+  .password-wrap .input-field { margin-bottom: 0; padding-right: 44px; }
+  .toggle-pw {
+    position: absolute; right: 14px; top: 50%; transform: translateY(-50%);
+    background: none; border: none; cursor: pointer; color: #999; font-size: 16px;
+  }
+
+  .pw-rules { margin-bottom: 18px; }
+  .pw-rule {
+    font-size: 13px; color: #999; padding: 2px 0;
+    display: flex; align-items: center; gap: 6px;
+    transition: color 0.2s;
+  }
+  .pw-rule.valid { color: #22c55e; }
+  .pw-rule.valid::before { content: '✓'; font-weight: 700; }
+  .pw-rule:not(.valid)::before { content: ''; display: inline-block; width: 14px; }
+
+  .btn-primary:disabled, .btn-primary[disabled] {
+    background: #d5d5d5; cursor: not-allowed;
+  }
+
+  /* ── Screen 6/7: Tab summary ── */
+  .tab-card {
+    background: #fff; border: 1.5px solid #e5e5e5; border-radius: 12px;
+    padding: 16px 18px; margin-bottom: 16px;
+    display: flex; justify-content: space-between; align-items: flex-start;
+  }
+  .tab-card-left h3 { font-size: 16px; font-weight: 700; color: #111; }
+  .tab-card-left .access-row {
+    font-size: 13px; color: #555; margin-top: 4px;
+    display: flex; align-items: center; gap: 4px;
+  }
+  .tab-card-left .access-row .chevron { font-size: 10px; }
+  .tab-ring {
+    width: 58px; height: 58px; border-radius: 50%;
+    border: 5px solid #e0e0e0;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 13px; font-weight: 700; color: #111;
+    flex-shrink: 0;
+    position: relative;
+  }
+  .tab-ring.full {
+    border-color: transparent;
+    background: conic-gradient(#111 360deg, #e0e0e0 0deg);
+  }
+  .tab-ring.full::before {
+    content: '';
+    position: absolute; inset: 5px;
+    background: #fff; border-radius: 50%;
+  }
+  .tab-ring.full span { position: relative; z-index: 1; }
+  .tab-ring.partial {
+    border-color: #d0d0d0;
+  }
+
+  .tab-info { font-size: 13px; color: #444; line-height: 1.5; margin-bottom: 16px; }
+  .tab-info a { color: #6b48ff; text-decoration: none; }
+
+  .pay-methods { display: flex; align-items: center; gap: 6px; }
+  .pay-badge { font-size: 10px; font-weight: 700; }
+  .pay-badge.visa { color: #1a1f71; }
+
+  /* ── Screen 8: Checkout ── */
+  .checkout-modal {
+    background: #fff;
+    border-radius: 16px;
+    width: 100%;
+    max-width: 420px;
+    box-shadow: 0 24px 80px rgba(0,0,0,0.4);
+    animation: popIn 0.22s cubic-bezier(0.34,1.56,0.64,1);
+    overflow: hidden;
+  }
+  .checkout-body { padding: 24px; }
+  .checkout-title { font-size: 24px; font-weight: 700; color: #111; margin-bottom: 6px; }
+  .test-mode-badge {
+    display: inline-block; background: #ff9500; color: #fff;
+    font-size: 11px; font-weight: 700; padding: 3px 8px; border-radius: 4px;
+    letter-spacing: 0.05em; margin-bottom: 14px;
+  }
+  .checkout-item { font-size: 14px; color: #555; margin-bottom: 4px; }
+  .checkout-price { font-size: 28px; font-weight: 700; color: #111; margin-bottom: 16px; }
+  .checkout-actions { display: flex; gap: 10px; margin-bottom: 20px; }
+  .btn-outline-sm {
+    padding: 8px 14px; border: 1.5px solid #d0d0d0; border-radius: 8px;
+    background: #fff; font-size: 14px; color: #111; cursor: pointer;
+    display: flex; align-items: center; gap: 6px;
+    transition: border-color 0.15s;
+  }
+  .btn-outline-sm:hover { border-color: #999; }
+  .chevron-down { font-size: 10px; }
+
+  .input-row {
+    background: #f8f8f8; border: 1.5px solid #e5e5e5; border-radius: 10px;
+    padding: 13px 16px; margin-bottom: 20px;
+    display: flex; justify-content: space-between; align-items: center;
+    font-size: 14px; color: #555;
+  }
+  .input-row span:last-child { color: #888; }
+
+  .pay-section h4 { font-size: 15px; font-weight: 600; color: #111; margin-bottom: 12px; }
+  .pay-option {
+    display: flex; align-items: center; gap: 12px;
+    padding: 14px; border: 1.5px solid #e5e5e5; border-radius: 10px;
+    margin-bottom: 8px; cursor: pointer; transition: border-color 0.15s;
+  }
+  .pay-option:hover { border-color: #bbb; }
+  .pay-radio {
+    width: 18px; height: 18px; border: 2px solid #ccc; border-radius: 50%;
+    flex-shrink: 0;
+  }
+  .pay-option-label { font-size: 14px; font-weight: 500; color: #111; }
+  .pay-logos { display: flex; gap: 4px; margin-left: auto; }
+  .card-logo { font-size: 10px; font-weight: 800; padding: 2px 5px; border-radius: 3px; }
+  .card-logo.visa { color: #1a1f71; border: 1px solid #ddd; }
+  .card-logo.mc { background: #eb001b; color: #fff; }
+  .card-logo.amex { background: #2671b9; color: #fff; }
+  .card-logo.jcb { background: #0e4c96; color: #fff; }
+
+  .stripe-footer {
+    display: flex; justify-content: center; align-items: center; gap: 16px;
+    padding: 16px 24px; border-top: 1px solid #f0f0f0;
+    background: #fafafa; font-size: 12px; color: #888;
+  }
+  .stripe-footer a { color: #888; text-decoration: none; }
+  .stripe-word { font-weight: 700; font-style: italic; font-size: 13px; color: #635bff; }
+
+  /* ── Browser chrome ── */
+  .browser-chrome {
+    background: #3c3c3c;
+    border-radius: 12px 12px 0 0;
+    padding: 10px 14px;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .traffic-lights { display: flex; gap: 6px; }
+  .tl { width: 12px; height: 12px; border-radius: 50%; }
+  .tl.red { background: #ff5f57; }
+  .tl.yellow { background: #febc2e; }
+  .tl.green { background: #28c840; }
+  .url-bar {
+    flex: 1; background: #555; border-radius: 6px;
+    padding: 4px 10px; font-size: 11px; color: #ccc;
+    font-family: monospace;
+  }
+  .chrome-icon { font-size: 14px; opacity: 0.6; }
+  .browser-window {
+    background: #fff;
+    border-radius: 0 0 16px 16px;
+    overflow: hidden;
+    max-width: 420px;
+    width: 100%;
+    box-shadow: 0 24px 80px rgba(0,0,0,0.4);
+    animation: popIn 0.22s cubic-bezier(0.34,1.56,0.64,1);
+  }
+  .browser-wrapper {
+    max-width: 420px; width: 100%;
+    animation: popIn 0.22s cubic-bezier(0.34,1.56,0.64,1);
+  }
+
+  /* ── Screen helpers ── */
+  .screen { display: none; }
+  .screen.active { display: flex; }
+
+  /* ── End screen ── */
+  .end-note {
+    text-align: center; color: rgba(255,255,255,0.6);
+    font-size: 13px; margin-top: 12px;
+    animation: fadeIn 0.4s ease;
+  }
+  @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+  .ideal-logo { font-size: 13px; font-weight: 800; color: #cc0066; }
+</style>
+</head>
+<body>
+
+<!-- Background -->
+<div class="bg-article"></div>
+<div class="bg-text">
+  The secret ingredient for the best pizza dough has long been debated among Italian chefs and home cooks alike. Our team of culinary experts has spent months testing different hydration levels, flour types, and fermentation times to bring you the definitive guide. Whether you prefer a thin Neapolitan crust or a thick Sicilian base, understanding the fundamentals of dough chemistry can transform your home baking. The key lies in the balance between gluten development and yeast activity — two forces that work in concert to create that perfect chew and char. Temperature control during proofing is equally critical; even a few degrees can dramatically alter the final texture...
+</div>
+
+<!-- ══════════════════════════════════
+     SCREEN 1 – Payment options
+══════════════════════════════════ -->
+<div class="overlay screen active" id="s1">
+  <div class="modal">
+    <div class="test-banner">Test Mode</div>
+    <button class="btn-close" onclick="closeAll()">×</button>
+    <div class="modal-body">
+      <div class="article-label">Your article</div>
+      <h1 class="screen1-title">Get Access In Seconds</h1>
+      <p class="tab-notice">
+        You'll only pay when your Tab reaches €1.00
+        <span class="info-icon">i</span>
+      </p>
+
+      <div class="options-row">
+        <div class="option-card" id="opt-min" onclick="selectOption('opt-min')">
+          <div class="option-label">1 minute</div>
+          <div class="option-price">€0.25</div>
+        </div>
+        <div class="option-card selected" id="opt-day" onclick="selectOption('opt-day')">
+          <div class="option-label">1 day</div>
+          <div class="option-price">€1.00</div>
+        </div>
+        <div class="option-card" id="opt-week" onclick="selectOption('opt-week')">
+          <div class="option-label">1 week</div>
+          <div class="option-price">€2.00</div>
+        </div>
+      </div>
+
+      <button class="btn-primary" onclick="goTo('s2')">
+        <span class="supertab-logo-inline"></span>
+        Get access
+      </button>
+
+      <div class="divider">or</div>
+
+      <button class="btn-secondary">More access options</button>
+    </div>
+    <div class="modal-footer">
+      <div class="footer-brand">
+        <span class="supertab-logo-sm"></span>
+        Supertab
+        <span style="color:#ccc; margin: 0 4px;">|</span>
+        <span class="footer-visa">VISA</span>
+        <span class="footer-preferred">Preferred</span>
+      </div>
+      <button class="btn-login">Log in</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════
+     SCREEN 2 – Auth options
+══════════════════════════════════ -->
+<div class="overlay screen" id="s2">
+  <div class="auth-modal">
+    <h2 class="auth-title">Sign in or register with Supertab to access <span>Your article</span> and others</h2>
+
+    <button class="auth-btn disabled">
+      <svg class="btn-icon" viewBox="0 0 20 20"><path d="M19.6 10.23c0-.68-.06-1.36-.18-2H10v3.79h5.39a4.6 4.6 0 01-2 3.02v2.5h3.23c1.9-1.74 2.98-4.32 2.98-7.31z" fill="#4285F4"/><path d="M10 20c2.7 0 4.97-.89 6.62-2.42l-3.23-2.5c-.9.6-2.05.96-3.39.96-2.6 0-4.81-1.75-5.6-4.11H1.08v2.6A10 10 0 0010 20z" fill="#34A853"/><path d="M4.4 11.93A6 6 0 014.1 10c0-.67.12-1.32.3-1.93V5.47H1.08A10 10 0 000 10c0 1.62.39 3.14 1.08 4.47l3.32-2.54z" fill="#FBBC05"/><path d="M10 3.96c1.47 0 2.79.5 3.82 1.5L16.7 2.4A10 10 0 001.08 5.47l3.32 2.6C5.19 5.71 7.4 3.96 10 3.96z" fill="#EA4335"/></svg>
+      Continue with Google
+    </button>
+
+    <button class="auth-btn disabled">
+      <svg class="btn-icon" viewBox="0 0 20 20" fill="currentColor"><path d="M17.05 14.56c-.37.84-.81 1.61-1.42 2.32-.74.86-1.35 1.46-1.82 1.79-.72.66-1.5.99-2.34.99-.6 0-1.33-.17-2.17-.5-.84-.34-1.62-.5-2.32-.5-.74 0-1.53.17-2.37.5-.85.34-1.53.51-2.06.52-.8.04-1.59-.3-2.37-1.02-.51-.38-1.14-1.01-1.9-1.9a13.1 13.1 0 01-2-3.46C.08 12.12 0 10.75 0 9.42c0-1.53.33-2.85.99-3.97a5.82 5.82 0 012.07-2.1A5.57 5.57 0 015.85 2.5c.67 0 1.55.21 2.64.61 1.1.41 1.8.61 2.1.61.23 0 1.02-.24 2.33-.71 1.25-.44 2.3-.63 3.16-.56 2.35.19 4.1 1.1 5.27 2.75-2.1 1.27-3.14 3.05-3.12 5.32.02 1.77.66 3.24 1.93 4.4.57.55 1.21.97 1.92 1.27-.15.44-.32.87-.51 1.28l-.52.1zM13.28.2c0 1.39-.51 2.69-1.52 3.88-1.22 1.43-2.7 2.25-4.3 2.12a4.32 4.32 0 01-.03-.53c0-1.33.58-2.75 1.6-3.91C9.55 1.1 10.19.66 11 .34 11.8.03 12.56-.1 13.27 0c.01.07.01.14.01.2z"/></svg>
+      Continue with Apple
+    </button>
+
+    <button class="auth-btn" onclick="goTo('s3')">
+      <svg class="btn-icon" viewBox="0 0 20 20" fill="none"><rect x="1" y="3" width="18" height="14" rx="2" stroke="#333" stroke-width="1.5"/><path d="M1 7l9 6 9-6" stroke="#333" stroke-width="1.5"/></svg>
+      Continue with Email
+    </button>
+
+    <div class="research-check">
+      <input type="checkbox">
+      <span>I'd like to participate in research and feedback sessions. <em>(optional)</em></span>
+      <span class="info-icon" style="margin-left:auto; flex-shrink:0; width:16px;height:16px;border:1.5px solid #bbb;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:10px;color:#999">i</span>
+    </div>
+
+    <p class="terms-text">By continuing, you agree to Supertab <a href="#">Terms of Service</a> and <a href="#"><strong>Privacy Policy</strong></a>.</p>
+
+    <div class="supertab-section">
+      <div class="supertab-brand">
+        <span class="supertab-circle"></span>
+        Supertab
+      </div>
+      <div class="feature-item">
+        <div class="feature-icon">⚡</div>
+        <div class="feature-text">
+          <h4>Instant access anytime, anywhere</h4>
+          <p>Get instant access to AI, videos, tools, articles, and more</p>
+        </div>
+      </div>
+      <div class="feature-item">
+        <div class="feature-icon">💳</div>
+        <div class="feature-text">
+          <h4>A seamless way to pay, your way</h4>
+          <p>Pay only whenever your Tab is full or when you subscribe</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════
+     SCREEN 3 – Email input
+══════════════════════════════════ -->
+<div class="overlay screen" id="s3">
+  <div class="browser-wrapper">
+    <div class="browser-chrome">
+      <div class="traffic-lights"><div class="tl red"></div><div class="tl yellow"></div><div class="tl green"></div></div>
+      <div class="url-bar">signon.sbx.supertab.co/en/oauth2/regist...</div>
+      <span class="chrome-icon">⬇</span>
+    </div>
+    <div class="browser-window">
+      <div class="modal-body">
+        <h2 class="auth-title">Sign in or register with Supertab to access <span style="color:#6b48ff">Your article</span> and others</h2>
+        <input class="input-field" type="email" id="emailInput" placeholder="your@email.com" value="testing06032026@gmail.com">
+        <button class="btn-primary" style="background:#111" onclick="goTo('s4')">Confirm</button>
+        <p class="terms-text" style="margin-top:14px">By continuing, you agree to Supertab <a href="#">Terms of Service</a> and <a href="#"><strong>Privacy Policy</strong></a>.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════
+     SCREEN 4 – Password (invalid)
+══════════════════════════════════ -->
+<div class="overlay screen" id="s4">
+  <div class="browser-wrapper">
+    <div class="browser-chrome">
+      <div class="traffic-lights"><div class="tl red"></div><div class="tl yellow"></div><div class="tl green"></div></div>
+      <div class="url-bar">signon.sbx.supertab.co/en/oauth2/regist...</div>
+      <span class="chrome-icon">⬇</span>
+    </div>
+    <div class="browser-window">
+      <div class="modal-body">
+        <h2 class="auth-title">Sign in or register with Supertab to access <span style="color:#6b48ff">Your article</span> and others</h2>
+        <input class="input-field" type="email" value="testing06032026@gmail.com" readonly style="color:#666">
+        <div class="password-wrap">
+          <input class="input-field" type="password" id="pwInput" placeholder="Password" oninput="checkPassword(this.value)">
+          <button class="toggle-pw" onclick="togglePw('pwInput')">👁</button>
+        </div>
+        <div class="pw-rules">
+          <div class="pw-rule" id="rule-len">10 characters minimum</div>
+          <div class="pw-rule" id="rule-num">at least 1 number</div>
+          <div class="pw-rule" id="rule-upper">at least 1 uppercase character</div>
+          <div class="pw-rule" id="rule-special">at least 1 special character</div>
+        </div>
+        <button class="btn-primary" id="signupBtn" disabled onclick="goTo('s6')">Sign Up</button>
+        <p class="terms-text" style="margin-top:14px">By continuing, you agree to Supertab <a href="#">Terms of Service</a> and <a href="#"><strong>Privacy Policy</strong></a>.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════
+     SCREEN 6 – Tab summary (adding)
+══════════════════════════════════ -->
+<div class="overlay screen" id="s6">
+  <div class="modal" style="max-width:400px">
+    <div class="modal-body" style="padding-top:20px">
+      <button class="btn-back" onclick="goTo('s4')">Back</button>
+      <button class="btn-close" onclick="closeAll()">×</button>
+
+      <div class="tab-card">
+        <div class="tab-card-left">
+          <h3>Your article</h3>
+          <div class="access-row">1 day access / €1.00 <span class="chevron">▲</span></div>
+        </div>
+        <div class="tab-ring partial"><span>€1.00</span></div>
+      </div>
+
+      <p class="tab-info">You're adding €1.00 to your Tab. You'll only pay when your Tab reaches €1.00 or after 30 days inactive <span class="info-icon" style="display:inline-flex;width:14px;height:14px;border:1.5px solid #999;border-radius:50%;align-items:center;justify-content:center;font-size:9px;color:#999">i</span></p>
+
+      <button class="btn-primary" onclick="goTo('s7')">Continue</button>
+    </div>
+    <div class="modal-footer">
+      <div class="footer-brand">
+        <span class="supertab-logo-sm"></span>
+        Supertab
+      </div>
+      <div class="pay-methods">
+        <span class="footer-visa">VISA</span>
+        <span class="footer-preferred">Preferred</span>
+        <span style="font-size:11px; color:#666; margin-left:2px">| 🍎 Pay G Pay 💳</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════
+     SCREEN 7 – Tab full
+══════════════════════════════════ -->
+<div class="overlay screen" id="s7">
+  <div class="modal" style="max-width:400px">
+    <div class="modal-body" style="padding-top:20px">
+      <button class="btn-back" onclick="goTo('s6')">Back</button>
+      <button class="btn-close" onclick="closeAll()">×</button>
+
+      <div class="tab-card">
+        <div class="tab-card-left">
+          <h3>Your article</h3>
+          <div class="access-row">1 day access / €1.00 <span class="chevron">▲</span></div>
+        </div>
+        <div class="tab-ring full"><span>€1.00</span></div>
+      </div>
+
+      <p class="tab-info">Your Tab is full. The list of purchases on the Tab is available in <a href="#">your account</a>.</p>
+
+      <button class="btn-primary" onclick="goTo('s8')">Continue to checkout</button>
+    </div>
+    <div class="modal-footer">
+      <div class="footer-brand">
+        <span class="supertab-logo-sm"></span>
+        Supertab
+      </div>
+      <div class="pay-methods">
+        <span class="footer-visa">VISA</span>
+        <span class="footer-preferred">Preferred</span>
+        <span style="font-size:11px; color:#666; margin-left:2px">| 🍎 Pay G Pay 💳</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════
+     SCREEN 8 – Checkout
+══════════════════════════════════ -->
+<div class="overlay screen" id="s8">
+  <div class="browser-wrapper">
+    <div class="browser-chrome">
+      <div class="traffic-lights"><div class="tl red"></div><div class="tl yellow"></div><div class="tl green"></div></div>
+      <div class="url-bar">checkout.sbx.supertab.co/?tab_id=tab.4...</div>
+      <span class="chrome-icon">⬇</span>
+    </div>
+    <div class="checkout-modal">
+      <div class="demo-banner">
+        <span class="warn-icon">⚠️</span>
+        <span>This is a demo. Please do not use real credit card information.</span>
+      </div>
+      <div class="checkout-body">
+        <h2 class="checkout-title">Checkout</h2>
+        <div class="test-mode-badge">TEST MODE</div>
+        <div class="checkout-item">Your article - 1 Day Time Pass</div>
+        <div class="checkout-price">€1.00</div>
+
+        <div class="checkout-actions">
+          <button class="btn-outline-sm">Add code <span class="chevron-down">▾</span></button>
+          <button class="btn-outline-sm">View details <span class="chevron-down">▾</span></button>
+        </div>
+
+        <div class="input-row">
+          <span>Email</span>
+          <span>testing06032026@gmail....</span>
+        </div>
+
+        <div class="pay-section">
+          <h4>Payment method</h4>
+          <div class="pay-option">
+            <div class="pay-radio"></div>
+            <span class="pay-option-label">💳 Card</span>
+            <div class="pay-logos">
+              <span class="card-logo visa">VISA</span>
+              <span class="card-logo mc">MC</span>
+              <span class="card-logo amex">AMEX</span>
+              <span class="card-logo jcb">JCB</span>
+            </div>
+          </div>
+          <div class="pay-option">
+            <div class="pay-radio"></div>
+            <span class="pay-option-label"><span class="ideal-logo">iDEAL</span> | Wero</span>
+          </div>
+        </div>
+
+        <button class="btn-primary purple" style="margin-top:20px">Pay</button>
+      </div>
+      <div class="stripe-footer">
+        Powered by <span class="stripe-word">stripe</span>
+        <a href="#">Terms</a>
+        <a href="#">Privacy</a>
+      </div>
+      <div style="padding: 12px 24px; border-top: 1px solid #f0f0f0; background:#fafafa; display:flex; align-items:center; gap:6px;">
+        <span class="supertab-logo-sm" style="border-color:#555;"></span>
+        <span style="font-size:13px; color:#555; font-weight:600;">Supertab</span>
+        <span style="color:#ccc; margin:0 4px">|</span>
+        <span class="footer-visa">VISA</span>
+        <span class="footer-preferred">Preferred</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  let selectedOption = 'opt-day';
+
+  function selectOption(id) {
+    document.querySelectorAll('.option-card').forEach(c => c.classList.remove('selected'));
+    document.getElementById(id).classList.add('selected');
+    selectedOption = id;
+  }
+
+  function goTo(screenId) {
+    document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+    document.getElementById(screenId).classList.add('active');
+    // reset password field when going to s4
+    if (screenId === 's4') {
+      const pw = document.getElementById('pwInput');
+      if (pw) { pw.value = ''; checkPassword(''); }
+    }
+  }
+
+  function closeAll() {
+    document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  }
+
+  function togglePw(inputId) {
+    const input = document.getElementById(inputId);
+    input.type = input.type === 'password' ? 'text' : 'password';
+  }
+
+  function checkPassword(val) {
+    const rules = {
+      'rule-len': val.length >= 10,
+      'rule-num': /[0-9]/.test(val),
+      'rule-upper': /[A-Z]/.test(val),
+      'rule-special': /[^a-zA-Z0-9]/.test(val),
+    };
+    let allValid = true;
+    for (const [id, valid] of Object.entries(rules)) {
+      const el = document.getElementById(id);
+      if (valid) { el.classList.add('valid'); } else { el.classList.remove('valid'); allValid = false; }
+    }
+    document.getElementById('signupBtn').disabled = !allValid;
+  }
+</script>
+</body>
+</html>
